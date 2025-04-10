@@ -2,7 +2,6 @@ package entities.user;
 
 import java.util.UUID;
 
-// TODO: Implement the entity
 public class User {
     private UUID id;
     private String username;
@@ -24,5 +23,17 @@ public class User {
     void setPassword(String password) {
         UserValidator.validatePassword(password);
         this.password = password;
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public String getPassword() {
+        return password;
     }
 }

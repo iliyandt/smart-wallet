@@ -1,16 +1,21 @@
 package services.imp;
 
+import core.UserSessionManager;
+import repositories.WalletRepository;
 import services.WalletService;
 
 import java.util.Currency;
 import java.util.UUID;
 
-// TODO:
-// 1. Implement all methods
-// 2. Make sure this service implementation has dependency a SessionManager
-// so you can determine which is the currently logged in user.
 public class WalletServiceImpl implements WalletService {
 
+    private UserSessionManager sessionManager;
+    private WalletRepository walletRepository;
+
+    public WalletServiceImpl(UserSessionManager sessionManager) {
+        this.sessionManager = sessionManager;
+        this.walletRepository = new WalletRepository();
+    }
 
     @Override
     public String createNewWallet(Currency currency, String walletType) {

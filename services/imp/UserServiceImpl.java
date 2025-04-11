@@ -58,9 +58,10 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException(SystemErrors.NO_ACTIVE_USER_SESSION_FOUND);
         }
 
+        String username = sessionManager.getActiveSession().getUsername();
         sessionManager.terminateActiveSession();
 
-        return LogMessages.SUCCESSFULLY_LOGGED_OUT.formatted(sessionManager.getActiveSession().getUsername());
+        return LogMessages.SUCCESSFULLY_LOGGED_OUT.formatted(username);
     }
 
     @Override

@@ -1,16 +1,22 @@
 package services.imp;
 
+import common.LogMessages;
+import common.SystemErrors;
 import core.UserSessionManager;
+import entities.user.User;
+import entities.wallet.*;
 import repositories.WalletRepository;
 import services.WalletService;
 
 import java.util.Currency;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class WalletServiceImpl implements WalletService {
 
-    private UserSessionManager sessionManager;
-    private WalletRepository walletRepository;
+    private final UserSessionManager sessionManager;
+    private final WalletRepository walletRepository;
 
     public WalletServiceImpl(UserSessionManager sessionManager) {
         this.sessionManager = sessionManager;
@@ -19,26 +25,114 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     public String createNewWallet(Currency currency, String walletType) {
-        return "";
+
+        validActiveSession();
+
+        User activeUser = sessionManager.getActiveSession();
+
+        Wallet wallet = switch (walletType) {
+            case "Standard" -> new StandardWallet(activeUser.getId(), activeUser.getUsername(), currency);
+            case "Disposable" -> new DisposableWallet(activeUser.getId(), activeUser.getUsername(), currency);
+            case "Savings" -> new SavingsWallet(activeUser.getId(), activeUser.getUsername(), currency);
+            default -> throw new IllegalArgumentException(SystemErrors.INCORRECT_WALLET_TYPE);
+        };
+
+        boolean alreadyExistingStandardWallet = walletRepository.getAll()
+                .stream()
+                .anyMatch(w -> w.getOwnerId().equals(activeUser.getId()));
+
+        if (walletType.equals("Standard") && alreadyExistingStandardWallet) {
+            throw new IllegalArgumentException(SystemErrors.STANDARD_WALLET_COUNT_LIMIT_REACHED);
+        }
+
+        walletRepository.save(wallet.getId(), wallet);
+
+        return wallet.toString();
     }
 
     @Override
     public String getMyWallets() {
-        return "";
+        validActiveSession();
+        User activeUser = sessionManager.getActiveSession();
+
+        List<Wallet> userWallets = walletRepository.getAll().stream()
+                .filter(wallet -> wallet.getOwnerId().equals(activeUser.getId()))
+                .toList();
+
+        if (userWallets.isEmpty()) {
+            return LogMessages.ZERO_WALLETS;
+        }
+
+        return userWallets.stream()
+                .map(Wallet::toString)
+                .collect(Collectors.joining(System.lineSeparator()));
     }
 
     @Override
     public String deposit(UUID walletId, double amount) {
-        return "";
+        Wallet wallet = getCurrentlyActiveUserWallet(walletId);
+
+        wallet.deposit(amount);
+
+        return LogMessages.SUCCESSFULLY_DEPOSITED_AMOUNT
+                .formatted(wallet.getBalance(), wallet.getCurrency());
     }
+
 
     @Override
     public String transfer(UUID walletId, String receiverUsername, double amount) {
-        return "";
+
+        Wallet senderWallet = getCurrentlyActiveUserWallet(walletId);
+        Wallet receiverWallet = walletRepository.getAll().stream()
+                .filter(w -> w.getOwnerUsername().equals(receiverUsername) && w instanceof StandardWallet)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(SystemErrors.NO_WALLET_FOUND_FOR_RECEIVER.formatted(receiverUsername)));
+
+        boolean isSenderWalletActive = senderWallet.getStatus() == WalletStatus.ACTIVE;
+        boolean isReceiverWalletActive = receiverWallet.getStatus() == WalletStatus.ACTIVE;
+        boolean isSameCurrency = senderWallet.getCurrency().equals(receiverWallet.getCurrency());
+
+        if (!isSenderWalletActive || !isReceiverWalletActive || !isSameCurrency) {
+            throw new IllegalStateException(SystemErrors.TRANSFER_CRITERIA_NOT_MET);
+        }
+
+        senderWallet.withdraw(amount);
+        receiverWallet.deposit(amount);
+
+        return LogMessages.SUCCESSFUL_FUNDS_TRANSFER.formatted(senderWallet.getOwnerUsername(), amount, receiverUsername, senderWallet.getBalance());
     }
 
     @Override
     public String changeWalletStatus(UUID walletId, String newStatus) {
-        return "";
+
+        Wallet wallet = getCurrentlyActiveUserWallet(walletId);
+
+        WalletStatus status = switch (newStatus) {
+            case "ACTIVE" -> WalletStatus.ACTIVE;
+            case "INACTIVE" -> WalletStatus.INACTIVE;
+            default -> throw new IllegalArgumentException(SystemErrors.INCORRECT_WALLET_STATUS);
+        };
+
+        wallet.setStatus(status);
+
+        return LogMessages.SUCCESSFULLY_CHANGED_WALLET_STATUS.formatted(status);
+    }
+
+
+    private void validActiveSession() {
+        if (!sessionManager.hasActiveSession()) {
+            throw new IllegalArgumentException(SystemErrors.NO_ACTIVE_USER_SESSION_FOUND);
+        }
+    }
+
+    private Wallet getCurrentlyActiveUserWallet(UUID walletId) {
+        validActiveSession();
+
+        User activeUser = sessionManager.getActiveSession();
+
+        return walletRepository.getAll().stream()
+                .filter(w -> w.getId().equals(walletId) && w.getOwnerId().equals(activeUser.getId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(SystemErrors.WALLET_NOT_ASSOCIATED_WITH_THIS_USER.formatted(activeUser.getUsername())));
     }
 }

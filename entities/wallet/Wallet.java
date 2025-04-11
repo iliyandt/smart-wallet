@@ -91,8 +91,7 @@ public abstract class Wallet {
                 .append(System.lineSeparator());
         builder.append("Balance: ").append(balance)
                 .append(System.lineSeparator());
-        builder.append("Status: ").append(status)
-                .append(System.lineSeparator());
+        builder.append("Status: ").append(status);
 
         return builder.toString();
     }

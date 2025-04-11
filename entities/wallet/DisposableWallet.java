@@ -1,5 +1,7 @@
 package entities.wallet;
 
+import common.SystemErrors;
+
 import java.util.Currency;
 import java.util.UUID;
 
@@ -17,6 +19,7 @@ public class DisposableWallet extends Wallet{
 
         if (withdrawAttempts >= 2) {
             setStatus(WalletStatus.INACTIVE);
+            throw new IllegalStateException(SystemErrors.WITHDRAWAL_LIMIT_REACHED_FOR_DISPOSABLE_WALLET);
         }
 
         super.withdraw(amount);
